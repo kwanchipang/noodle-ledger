@@ -1,0 +1,1095 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="referrer" content="no-referrer">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#f8f3e8">
+  <title>台湾面线糊成本计算器</title>
+  <style>
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      background: #f8f3e8;
+      color: #30251d;
+      font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", sans-serif;
+      line-height: 1.5;
+    }
+    main { width: min(100%, 540px); margin: auto; padding: 28px 16px; }
+    h1 { margin: 0; font-size: clamp(22px, 6vw, 30px); }
+    h2 { margin: 0 0 4px; font-size: 19px; }
+    p { margin: 4px 0 0; }
+    header p, .hint { color: #675447; font-size: 14px; }
+    section {
+      margin-top: 16px;
+      padding: 16px;
+      border: 1px solid #e6d9c9;
+      border-radius: 18px;
+      background: #fffdf8;
+    }
+    .results { background: #432a20; color: #fff5e6; border-color: #432a20; }
+    dl { margin: 8px 0 0; }
+    .row, dl div {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      align-items: center;
+      gap: 12px;
+    }
+    .row { padding: 4px 0; }
+    dl div { padding: 6px 0; }
+    dd { margin: 0; font-weight: 700; font-variant-numeric: tabular-nums; }
+    .amount { display: flex; align-items: center; gap: 8px; }
+    input, button {
+      min-height: 44px;
+      padding: 8px 10px;
+      border: 1px solid #a79685;
+      border-radius: 8px;
+      background: white;
+      color: #30251d;
+      font: inherit;
+      font-size: 16px;
+    }
+    input { width: 100%; min-width: 0; text-align: right; }
+    #price { width: 106px; }
+    :focus-visible { outline: 2px solid #9b482d; outline-offset: 2px; }
+    input[aria-invalid="true"] { border-color: #ac3928; }
+    fieldset { min-width: 0; margin: 14px 0 0; padding: 10px; border: 1px solid #e6d9c9; border-radius: 10px; }
+    legend { padding: 0 5px; font-weight: 700; }
+    .fields { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; }
+    .fields label { display: grid; gap: 4px; color: #675447; font-size: 13px; }
+    .warning { color: #a22c21; font-size: 14px; }
+    table { width: 100%; margin-top: 8px; border-collapse: collapse; font-variant-numeric: tabular-nums; }
+    th, td { padding: 8px 2px; border-bottom: 1px solid #e6d9c9; text-align: left; }
+    td:last-child, thead th:last-child { text-align: right; }
+    tbody th { font-weight: normal; }
+    tfoot th, tfoot td { border-bottom: 0; font-weight: 700; }
+    button { margin-top: 10px; cursor: pointer; }
+    .tabs { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 12px; }
+    .tabs button { margin: 0; padding-inline: 4px; }
+    .tabs [aria-pressed="true"], .primary { background: #432a20; color: #fff5e6; border-color: #432a20; }
+    #business-panel h3 { font-size: 16px; margin: 14px 0 6px; }
+    #business-panel .stack { display: block; margin: 10px 0 4px; }
+    #business-panel input[type="date"], #business-panel input[type="month"] { text-align: left; background: white; }
+    #business-panel input[type="file"] { text-align: left; }
+    .product-fields, .fees { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .sales-fields { margin-top: 10px; }
+    .buttons { display: flex; gap: 8px; flex-wrap: wrap; }
+    .record { margin-top: 12px; padding-top: 12px; border-top: 1px solid #e6d9c9; }
+    #business-panel .record h3 { margin-top: 0; }
+    #business-panel dd { overflow-wrap: anywhere; text-align: right; }
+  </style>
+</head>
+<body>
+  <main id="cloud-gate">
+    <h1>面线糊共享账本</h1>
+    <section>
+      <form id="cloud-login">
+        <label>邮箱<input id="cloud-email" type="email" autocomplete="username" required></label>
+        <label>密码<input id="cloud-password" type="password" autocomplete="current-password" required></label>
+        <button class="primary" type="submit">登录</button>
+        <button id="request-reset" type="button">发送重设密码邮件</button>
+        <p id="cloud-login-status" role="status"></p>
+      </form>
+      <form id="reset-password" hidden>
+        <h2>设置新密码</h2>
+        <label>新密码<input id="new-password" type="password" autocomplete="new-password" minlength="8" required></label>
+        <button class="primary" type="submit">保存新密码</button>
+        <p id="reset-status" role="status"></p>
+      </form>
+    </section>
+  </main>
+  <main id="cloud-app" hidden>
+    <section aria-label="云端账本">
+      <h2>云端账本</h2>
+      <div class="buttons">
+        <button id="cloud-save" class="primary" type="button">保存到云端</button>
+        <button id="cloud-read" type="button">读取云端账本</button>
+        <button id="cloud-logout" type="button">退出登录</button>
+      </div>
+      <p id="cloud-status" class="hint" role="status"></p>
+    </section>
+    <header>
+      <h1>台湾面线糊成本计算器</h1>
+      <p>金额单位为人民币。<a href="#full-backup">完整备份与恢复</a></p>
+    </header>
+
+    <nav class="tabs" aria-label="功能选择">
+      <button type="button" id="cost-tab" aria-controls="cost-panel" aria-pressed="true">食材成本计算</button>
+      <button type="button" id="business-tab" aria-controls="business-panel" aria-pressed="false">每日营业管理</button>
+    </nav>
+    <div id="cost-panel">
+    <section class="results" aria-labelledby="summary">
+      <h2 id="summary">每碗结果</h2>
+      <dl aria-live="polite" aria-atomic="true">
+        <div><dt>总食材成本</dt><dd><output id="total">—</output></dd></div>
+        <div><dt>毛利</dt><dd><output id="profit">—</output></dd></div>
+        <div><dt>毛利率</dt><dd><output id="margin">—</output></dd></div>
+      </dl>
+    </section>
+
+    <section aria-label="售价和保存">
+      <div class="row">
+        <label for="price">每碗售价</label>
+        <span class="amount"><input id="price" type="text" inputmode="decimal" value="38"><span>元</span></span>
+      </div>
+      <p id="price-error" class="warning" hidden>请输入有效售价，最多两位小数。</p>
+      <button id="reset" type="button">恢复默认值</button>
+    </section>
+
+    <section aria-labelledby="detail-heading">
+      <h2 id="detail-heading">成本明细</h2>
+      <table aria-labelledby="detail-heading">
+        <thead><tr><th scope="col">食材</th><th scope="col">每碗用量</th><th scope="col">每碗成本</th></tr></thead>
+        <tbody id="details"></tbody>
+        <tfoot><tr><th scope="row" colspan="2">总食材成本</th><td id="detail-total">—</td></tr></tfoot>
+      </table>
+      <p class="hint">单项成本显示到分，合计按四舍五入前的金额计算。</p>
+    </section>
+
+    <section aria-labelledby="ingredients">
+      <h2 id="ingredients">填写采购和用量</h2>
+      <p class="hint">采购数量和每碗用量用同一单位。例如采购 1 千克，请填 1000 克。未使用的食材，用量留空或填 0。</p>
+      <p class="hint">采购价填写这批食材一共花了多少钱。</p>
+      <div id="ingredient-list"></div>
+    </section>
+    <noscript><p>请在支持 JavaScript 的浏览器中打开，才能自动计算。</p></noscript>
+    </div>
+    <div id="business-panel" hidden>
+      <section aria-labelledby="products-title">
+        <h2 id="products-title">产品售价和单份成本</h2>
+        <p class="hint">用于新记录。修改这里的金额后，已保存的账目会保留原来的金额。</p>
+        <div id="product-settings"></div>
+        <button id="use-noodle-cost" type="button">填入面线糊计算器的成本</button>
+        <p id="product-status" class="hint" role="status"></p>
+      </section>
+
+      <section aria-labelledby="daily-title">
+        <h2 id="daily-title">填写每日销量</h2>
+        <form id="daily-form" novalidate>
+          <label class="stack" for="sales-date">营业日期</label>
+          <input type="date" id="sales-date" required>
+          <div id="sales-fields" class="fields sales-fields"></div>
+          <div id="edit-prices" hidden></div>
+          <dl aria-live="polite">
+            <div><dt>当日营业额</dt><dd id="daily-revenue">—</dd></div>
+            <div><dt>当日食材成本</dt><dd id="daily-cost">—</dd></div>
+            <div><dt>当日毛利</dt><dd id="daily-gross">—</dd></div>
+          </dl>
+          <div class="buttons">
+            <button class="primary" id="save-day" type="submit">保存当天记录</button>
+            <button id="cancel-edit" type="button" hidden>取消编辑</button>
+          </div>
+          <p id="daily-status" class="hint" role="status"></p>
+        </form>
+      </section>
+
+      <section aria-labelledby="monthly-title">
+        <h2 id="monthly-title">月度汇总</h2>
+        <label class="stack" for="report-month">查看月份</label>
+        <input id="report-month" type="month">
+        <h3>当月固定费用（元）</h3>
+        <div class="fields fees">
+          <label>房租<input id="rent" type="text" inputmode="decimal"></label>
+          <label>人工<input id="labor" type="text" inputmode="decimal"></label>
+          <label>水电<input id="utilities" type="text" inputmode="decimal" placeholder="0"></label>
+          <label>其他费用<input id="other-fees" type="text" inputmode="decimal" placeholder="0"></label>
+        </div>
+        <p id="fee-status" class="hint" role="status"></p>
+        <dl aria-live="polite">
+          <div><dt>已记录天数</dt><dd id="month-days">0 天</dd></div>
+          <div><dt>月营业额</dt><dd id="month-revenue">—</dd></div>
+          <div><dt>月食材成本</dt><dd id="month-cost">—</dd></div>
+          <div><dt>月毛利</dt><dd id="month-gross">—</dd></div>
+          <div><dt>月固定费用</dt><dd id="month-fees">—</dd></div>
+          <div><dt>估算营业利润</dt><dd id="month-profit">—</dd></div>
+        </dl>
+        <p class="hint">月毛利 = 营业额 − 食材成本。估算营业利润 = 月毛利 − 当月固定费用。</p>
+      </section>
+
+      <section aria-labelledby="records-title">
+        <h2 id="records-title">营业记录</h2>
+        <label class="stack" for="query-date">按日期查询</label>
+        <input id="query-date" type="date">
+        <button id="clear-query" type="button">查看所选月份</button>
+        <p id="records-status" class="hint" role="status"></p>
+        <div id="record-list"></div>
+      </section>
+
+      <section aria-labelledby="backup-title">
+        <h2 id="backup-title">营业数据备份</h2>
+        <p class="hint">CSV 包含产品设置、月固定费用和每日记录。导入成功后会覆盖这些营业数据。</p>
+        <button id="export-business" type="button">导出 CSV</button>
+        <label class="stack" for="import-business">导入 CSV 备份</label>
+        <input id="import-business" type="file" accept=".csv,text/csv">
+        <p id="backup-status" class="hint" role="status"></p>
+      </section>
+    </div>
+    <section id="full-backup" aria-labelledby="full-backup-title">
+      <h2 id="full-backup-title">完整备份与恢复</h2>
+      <p class="hint">JSON 包含食材设置、售价、每日营业记录和各月固定费用。恢复时会先显示备份时间和数据条数，再询问是否覆盖。</p>
+      <p id="full-backup-count" class="hint"></p>
+      <button id="export-full" type="button">导出完整 JSON</button>
+      <label for="import-full">选择 JSON 备份</label>
+      <input id="import-full" type="file" accept=".json,application/json">
+      <p id="full-backup-status" class="hint" role="status"></p>
+    </section>
+  </main>
+
+  <template id="ingredient-template">
+    <fieldset>
+      <legend></legend>
+      <div class="fields">
+        <label>采购价（元）<input class="purchase" type="text" inputmode="decimal"></label>
+        <label><span class="quantity-label"></span><input class="quantity" type="text" inputmode="decimal"></label>
+        <label><span class="usage-label"></span><input class="usage" type="text" inputmode="decimal"></label>
+      </div>
+      <p class="warning" hidden>金额最多两位小数。用了这项食材时，请填写采购价和大于 0 的采购量。</p>
+    </fieldset>
+  </template>
+
+  <script>
+    const ingredients = [
+      ['red-noodles', '红面线', '克'],
+      ['seasoning', '康宝调味料', '克'],
+      ['soy-sauce', '酱油', '毫升'],
+      ['oysters', '蚵仔', '克'],
+      ['intestine', '大肠', '克'],
+      ['fish-balls', '花枝丸', '颗'],
+      ['whole-squid', '整条小鱿鱼', '条'],
+      ['cilantro', '香菜', '克'],
+      ['garlic', '蒜泥', '克']
+    ];
+    const defaultPrice = '38';
+    let persistCalculator;
+    const byId = id => document.getElementById(id);
+    const price = byId('price');
+
+    const rows = ingredients.map(([id, name, unit]) => {
+      const card = byId('ingredient-template').content.firstElementChild.cloneNode(true);
+      card.querySelector('legend').textContent = name;
+      card.querySelector('.quantity-label').textContent = '采购量（' + unit + '）';
+      card.querySelector('.usage-label').textContent = '每碗用量（' + unit + '）';
+      const inputs = [...card.querySelectorAll('input')];
+      byId('ingredient-list').append(card);
+
+      const detail = byId('details').insertRow();
+      const heading = document.createElement('th');
+      heading.scope = 'row';
+      heading.textContent = name;
+      detail.append(heading);
+      const usageCell = detail.insertCell();
+      const costCell = detail.insertCell();
+      return { id, unit, inputs, usageCell, costCell, warning: card.querySelector('.warning') };
+    });
+
+    function readNumber(input, money = false) {
+      const text = input.value.trim().replace(',', '.');
+      if (text === '') return null;
+      const pattern = money ? /^(?:\d+(?:\.\d{0,2})?|\.\d{1,2})$/ : /^(?:\d+(?:\.\d*)?|\.\d+)$/;
+      const number = Number(text);
+      return pattern.test(text) && Number.isFinite(number) && number <= 999999999 ? number : NaN;
+    }
+
+    function markInvalid(input, invalid) {
+      input.setAttribute('aria-invalid', String(invalid));
+      return invalid;
+    }
+
+    function formatMoney(value) {
+      return value.toFixed(2) + ' 元';
+    }
+
+    function calculateRow(row) {
+      const [purchaseInput, quantityInput, usageInput] = row.inputs;
+      const purchase = readNumber(purchaseInput, true);
+      const quantity = readNumber(quantityInput);
+      const usage = readNumber(usageInput);
+      const used = usage > 0;
+      const purchaseInvalid = markInvalid(purchaseInput, Number.isNaN(purchase) || (used && purchase === null));
+      const quantityInvalid = markInvalid(quantityInput, Number.isNaN(quantity) || (used && !(quantity > 0)));
+      const usageInvalid = markInvalid(usageInput, Number.isNaN(usage));
+      // 采购数量和每碗用量由同一个单位字段标注。
+      const cost = used ? purchase * (usage / quantity) : 0;
+      const invalid = purchaseInvalid || quantityInvalid || usageInvalid || !Number.isFinite(cost);
+
+      row.warning.hidden = !invalid;
+      row.usageCell.textContent = usageInvalid ? '—' : (usage ?? 0) + ' ' + row.unit;
+      row.costCell.textContent = invalid ? '—' : formatMoney(cost);
+      return invalid ? null : cost;
+    }
+
+    function updateResults() {
+      const sale = readNumber(price, true);
+      byId('price-error').hidden = !markInvalid(price, Number.isNaN(sale));
+      const costs = rows.map(calculateRow);
+      const sum = costs.reduce((total, cost) => total + cost, 0);
+      const validTotal = !costs.includes(null) && Number.isFinite(sum);
+      const validProfit = validTotal && Number.isFinite(sale);
+      const profit = sale - sum;
+
+      byId('total').value = validTotal ? formatMoney(sum) : '—';
+      byId('detail-total').textContent = byId('total').value;
+      byId('profit').value = validProfit ? formatMoney(profit) : '—';
+      byId('margin').value = validProfit && sale > 0 ? (profit / sale * 100).toFixed(2) + '%' : '—';
+    }
+
+    function applyCalculatorValues(saved) {
+      price.value = typeof saved?.price === 'string' ? saved.price : defaultPrice;
+      for (const row of rows) {
+        const values = saved?.ingredients?.[row.id];
+        row.inputs.forEach((input, index) => {
+          input.value = Array.isArray(values) && typeof values[index] === 'string' ? values[index] : '';
+        });
+      }
+    }
+
+    function calculatorValues() {
+      return {
+        price: price.value,
+        ingredients: Object.fromEntries(rows.map(row => [row.id, row.inputs.map(input => input.value)]))
+      };
+    }
+
+    for (const input of [price, ...rows.flatMap(row => row.inputs)]) {
+      input.addEventListener('input', () => {
+        updateResults();
+        persistCalculator('已保存在当前浏览器。');
+      });
+    }
+
+    byId('reset').addEventListener('click', () => {
+      if (!confirm('把售价恢复为 38 元，并清空所有食材输入？')) return;
+      price.value = defaultPrice;
+      for (const row of rows) {
+        for (const input of row.inputs) input.value = '';
+      }
+      updateResults();
+      persistCalculator('已恢复默认值。');
+    });
+
+    applyCalculatorValues(null);
+    updateResults();
+  </script>
+  <script>
+    (() => {
+      const products = [
+        { name: '面线糊', unit: '碗' },
+        { name: '锅烧意面', unit: '碗' },
+        { name: '饮品', unit: '杯' }
+      ];
+      const defaultFees = [300000, 500000, null, null];
+      const fees = ['rent', 'labor', 'utilities', 'other-fees'].map(byId);
+      const form = byId('daily-form');
+      const date = byId('sales-date');
+      const month = byId('report-month');
+      const query = byId('query-date');
+      const dailyStatus = byId('daily-status');
+      const backupStatus = byId('backup-status');
+      const fullBackupStatus = byId('full-backup-status');
+      const today = new Date();
+      const localDate = [today.getFullYear(), today.getMonth() + 1, today.getDate()]
+        .map((part, index) => String(part).padStart(index === 0 ? 4 : 2, '0')).join('-');
+      let state = { products: [[3800, null], [3800, null], [null, null]], fees: {}, days: {} };
+      let editing = null;
+      let importing = false;
+
+      // 金额保存为整数分，营业额、成本和利润按分计算。
+      const money = cents => (cents / 100).toFixed(2) + ' 元';
+      const inputMoney = cents => cents === null ? '' : String(cents / 100);
+      const validMonth = value => /^[1-9]\d{3}-(0[1-9]|1[0-2])$/.test(value);
+      function validDate(value) {
+        if (!/^[1-9]\d{3}-\d{2}-\d{2}$/.test(value) || !validMonth(value.slice(0, 7))) return false;
+        const stamp = Date.parse(value + 'T00:00:00Z');
+        return Number.isFinite(stamp) && new Date(stamp).toISOString().slice(0, 10) === value;
+      }
+
+      function amount(input) {
+        const raw = input.value.trim().replace(',', '.');
+        const valid = raw === '' || /^(?:\d{1,6}(?:\.\d{0,2})?|\.\d{1,2})$/.test(raw);
+        input.setAttribute('aria-invalid', String(!valid));
+        return !valid ? NaN : raw === '' ? null : Math.round(Number(raw) * 100);
+      }
+
+      function makeInput(labelText, mode) {
+        const label = document.createElement('label');
+        label.textContent = labelText;
+        const input = document.createElement('input');
+        input.type = 'text';
+        input.inputMode = mode;
+        label.append(input);
+        return { label, input };
+      }
+
+      function productFields(container) {
+        return products.map(({ name }) => {
+          const fieldset = document.createElement('fieldset');
+          const legend = document.createElement('legend');
+          legend.textContent = name;
+          const fields = document.createElement('div');
+          fields.className = 'fields product-fields';
+          const inputs = ['售价（元）', '单份食材成本（元）'].map(text => {
+            const { label, input } = makeInput(text, 'decimal');
+            fields.append(label);
+            return input;
+          });
+          fieldset.append(legend, fields);
+          container.append(fieldset);
+          return inputs;
+        });
+      }
+
+      const productInputs = productFields(byId('product-settings'));
+      const editInputs = productFields(byId('edit-prices'));
+      const salesInputs = products.map(({ name, unit }) => {
+        const { label, input } = makeInput(name + '（' + unit + '）', 'numeric');
+        input.placeholder = '0';
+        byId('sales-fields').append(label);
+        return input;
+      });
+
+      function completeData() {
+        return {
+          format: 'taiwan-noodle-management',
+          version: 1,
+          calculator: calculatorValues(),
+          business: state
+        };
+      }
+
+      function persist() {
+        cloudMessage('本页已修改。请点「保存到云端」。');
+        renderBackupCount();
+      }
+
+      function fillProducts(inputs, values) {
+        inputs.forEach((pair, index) => pair.forEach((input, column) => {
+          input.value = inputMoney(values[index][column]);
+          input.setAttribute('aria-invalid', 'false');
+        }));
+      }
+
+      function readProducts(inputs) {
+        return inputs.map(pair => pair.map(amount));
+      }
+
+      function updateProductSettings() {
+        const values = readProducts(productInputs);
+        const invalid = values.some(pair => pair.some(Number.isNaN));
+        byId('product-status').textContent = invalid ? '金额请输入 0 至 999999.99 元，最多两位小数。' : '';
+        if (!invalid) {
+          state.products = values;
+          persist();
+        }
+        const record = updateDaily();
+        if (!editing) dailyStatus.textContent = record.error;
+      }
+
+      function readDaily() {
+        const quantities = salesInputs.map(input => {
+          const raw = input.value.trim();
+          const valid = /^\d{0,5}$/.test(raw);
+          input.setAttribute('aria-invalid', String(!valid));
+          return valid ? Number(raw) : NaN;
+        });
+        const prices = readProducts(editing ? editInputs : productInputs);
+        const invalid = quantities.some(Number.isNaN) || prices.some(pair => pair.some(Number.isNaN));
+        const missing = products.findIndex((_, index) => quantities[index] > 0 && prices[index].includes(null));
+        const error = invalid ? '销量请输入 0 至 99999 的整数，金额最多两位小数。'
+          : missing >= 0 ? '请填写' + products[missing].name + '的售价和单份食材成本。' : '';
+        return { quantities, prices, error };
+      }
+
+      function totals(record) {
+        return record.quantities.reduce((sum, quantity, index) => {
+          const [price, cost] = record.prices[index];
+          sum.revenue += quantity * price;
+          sum.cost += quantity * cost;
+          return sum;
+        }, { revenue: 0, cost: 0 });
+      }
+
+      function updateDaily() {
+        const record = readDaily();
+        const { revenue, cost } = totals(record);
+        byId('daily-revenue').textContent = record.error ? '—' : money(revenue);
+        byId('daily-cost').textContent = record.error ? '—' : money(cost);
+        byId('daily-gross').textContent = record.error ? '—' : money(revenue - cost);
+        return record;
+      }
+
+      function clearEditor(nextDate = localDate) {
+        editing = null;
+        date.value = nextDate;
+        salesInputs.forEach(input => { input.value = ''; });
+        byId('edit-prices').hidden = true;
+        byId('cancel-edit').hidden = true;
+        byId('save-day').textContent = '保存当天记录';
+        dailyStatus.textContent = '';
+        updateDaily();
+      }
+
+      function openEditor(key) {
+        const record = state.days[key];
+        editing = key;
+        date.value = key;
+        salesInputs.forEach((input, index) => { input.value = String(record.quantities[index]); });
+        fillProducts(editInputs, record.prices);
+        byId('edit-prices').hidden = false;
+        byId('cancel-edit').hidden = false;
+        byId('save-day').textContent = '保存修改';
+        dailyStatus.textContent = '正在编辑 ' + key + ' 的销量和当天金额。';
+        updateDaily();
+        date.focus();
+      }
+
+      function fillFees() {
+        const values = state.fees[month.value] ?? defaultFees;
+        fees.forEach((input, index) => { input.value = inputMoney(values[index]); });
+        byId('fee-status').textContent = '';
+      }
+
+      function renderMonth() {
+        const key = month.value;
+        const days = Object.entries(state.days).filter(([day]) => day.slice(0, 7) === key);
+        let revenue = 0;
+        let cost = 0;
+        for (const [, record] of days) {
+          const daily = totals(record);
+          revenue += daily.revenue;
+          cost += daily.cost;
+        }
+        const feeValues = fees.map(amount);
+        const validFees = !feeValues.some(Number.isNaN);
+        const fixed = feeValues.reduce((total, value) => total + value, 0);
+        const valid = validMonth(key);
+        byId('month-days').textContent = valid ? days.length + ' 天' : '—';
+        for (const [id, value] of Object.entries({
+          revenue, cost, gross: revenue - cost, fees: fixed, profit: revenue - cost - fixed
+        })) {
+          byId('month-' + id).textContent = valid && Number.isFinite(value) && (validFees || id !== 'fees' && id !== 'profit')
+            ? money(value) : '—';
+        }
+        return feeValues;
+      }
+
+      function renderRecords() {
+        const list = byId('record-list');
+        const filtered = Object.entries(state.days).filter(([key]) => query.value
+          ? key === query.value : key.slice(0, 7) === month.value).sort(([a], [b]) => b.localeCompare(a));
+        list.replaceChildren();
+        byId('records-status').textContent = filtered.length ? filtered.length + ' 条记录' : '没有找到营业记录。';
+        for (const [key, record] of filtered) {
+          const article = document.createElement('article');
+          article.className = 'record';
+          const title = document.createElement('h3');
+          title.textContent = key;
+          const quantities = document.createElement('p');
+          quantities.textContent = products.map((product, index) =>
+            product.name + ' ' + record.quantities[index] + ' ' + product.unit).join(' · ');
+          const summary = document.createElement('p');
+          const { revenue, cost } = totals(record);
+          summary.textContent = '营业额 ' + money(revenue) + ' · 食材成本 ' + money(cost) + ' · 毛利 ' + money(revenue - cost);
+          const actions = document.createElement('div');
+          actions.className = 'buttons';
+          for (const [label, action] of [['编辑', () => openEditor(key)], ['删除', () => deleteDay(key)]]) {
+            const button = document.createElement('button');
+            button.type = 'button';
+            button.textContent = label;
+            button.setAttribute('aria-label', label + ' ' + key + ' 的记录');
+            button.addEventListener('click', action);
+            actions.append(button);
+          }
+          article.append(title, quantities, summary, actions);
+          list.append(article);
+        }
+      }
+
+      function deleteDay(key) {
+        if (importing || !confirm('确认删除 ' + key + ' 的营业记录？')) return;
+        delete state.days[key];
+        if (editing === key) clearEditor();
+        persist();
+        renderMonth();
+        renderRecords();
+      }
+
+      // CSV 使用固定字段，金额单位为分。整份验证通过后才可替换现有数据。
+      const csvHeader = 'type,key,q1,q2,q3,p1,c1,p2,c2,p3,c3,rent,labor,utilities,other';
+      function makeBackup() {
+        const lines = [csvHeader, ['products', '', '', '', '', ...state.products.flat(), '', '', '', '']];
+        for (const [key, values] of Object.entries(state.fees).sort()) {
+          lines.push(['fees', key, '', '', '', '', '', '', '', '', '', ...values]);
+        }
+        for (const [key, record] of Object.entries(state.days).sort()) {
+          lines.push(['day', key, ...record.quantities, ...record.prices.flat(), '', '', '', '']);
+        }
+        return lines.map(line => Array.isArray(line) ? line.join(',') : line).join('\r\n') + '\r\n';
+      }
+
+      function parseBackup(text) {
+        const [header, ...lines] = text.replace(/^\uFEFF/, '').trimEnd().split(/\r?\n/);
+        const data = { products: null, fees: {}, days: {} };
+        function requireValid(condition) {
+          if (!condition) throw new Error('CSV 格式无效');
+        }
+        function parseCell(cell, limit, optional = false) {
+          if (optional && cell === '') return null;
+          requireValid(/^\d+$/.test(cell) && Number(cell) <= limit);
+          return Number(cell);
+        }
+        requireValid(header === csvHeader);
+        for (const line of lines) {
+          const fields = line.split(',');
+          const [type, key] = fields;
+          requireValid(fields.length === 15);
+          const quantities = fields.slice(2, 5);
+          const prices = fields.slice(5, 11);
+          const fixed = fields.slice(11);
+          const empty = values => values.every(value => value === '');
+          const readPrices = () => {
+            const values = prices.map(value => parseCell(value, 99999999, true));
+            return [values.slice(0, 2), values.slice(2, 4), values.slice(4, 6)];
+          };
+          if (type === 'products') {
+            requireValid(data.products === null && key === '' && empty(quantities) && empty(fixed));
+            data.products = readPrices();
+          } else if (type === 'fees') {
+            requireValid(validMonth(key) && !data.fees[key] && empty(quantities) && empty(prices));
+            data.fees[key] = fixed.map(value => parseCell(value, 99999999, true));
+          } else {
+            requireValid(type === 'day' && validDate(key) && !data.days[key] && empty(fixed));
+            const counts = quantities.map(value => parseCell(value, 99999));
+            const amounts = readPrices();
+            requireValid(counts.every((count, index) => count === 0 || !amounts[index].includes(null)));
+            data.days[key] = { quantities: counts, prices: amounts };
+          }
+        }
+        requireValid(data.products !== null);
+        return data;
+      }
+
+      function switchPanel(business) {
+        byId('cost-panel').hidden = business;
+        byId('business-panel').hidden = !business;
+        byId('cost-tab').setAttribute('aria-pressed', String(!business));
+        byId('business-tab').setAttribute('aria-pressed', String(business));
+      }
+
+      byId('cost-tab').addEventListener('click', () => switchPanel(false));
+      byId('business-tab').addEventListener('click', () => switchPanel(true));
+      productInputs.flat().forEach(input => input.addEventListener('input', updateProductSettings));
+      byId('use-noodle-cost').addEventListener('click', () => {
+        const calculated = byId('total').value;
+        const cost = Number(calculated.replace(' 元', ''));
+        if (!Number.isFinite(cost) || cost > 999999.99) {
+          byId('product-status').textContent = '请先在食材成本计算器中填好面线糊食材成本。';
+          return;
+        }
+        productInputs[0][1].value = cost.toFixed(2);
+        updateProductSettings();
+      });
+
+      form.addEventListener('input', () => {
+        const record = updateDaily();
+        dailyStatus.textContent = record.error;
+      });
+      form.addEventListener('submit', event => {
+        event.preventDefault();
+        if (importing) return;
+        const key = date.value;
+        const record = updateDaily();
+        if (!validDate(key) || record.error || (state.days[key] && editing !== key)) {
+          dailyStatus.textContent = !validDate(key) ? '请选择有效的营业日期。' : record.error ||
+            '这一天已有记录。请在营业记录中选择「编辑」。';
+          return;
+        }
+        if (editing && editing !== key) delete state.days[editing];
+        state.days[key] = { quantities: record.quantities, prices: record.prices };
+        persist();
+        month.value = key.slice(0, 7);
+        query.value = '';
+        fillFees();
+        clearEditor(key);
+        dailyStatus.textContent = '已加入 ' + key + ' 的记录。请点「保存到云端」。';
+        renderMonth();
+        renderRecords();
+      });
+      byId('cancel-edit').addEventListener('click', () => clearEditor());
+
+      month.addEventListener('change', () => {
+        query.value = '';
+        fillFees();
+        renderMonth();
+        renderRecords();
+      });
+      fees.forEach(input => input.addEventListener('input', () => {
+        const values = renderMonth();
+        const valid = validMonth(month.value) && !values.some(Number.isNaN);
+        byId('fee-status').textContent = valid ? '' : '请选择月份并填写有效金额，最多两位小数。';
+        if (valid) {
+          state.fees[month.value] = values;
+          persist();
+        }
+      }));
+      query.addEventListener('change', renderRecords);
+      byId('clear-query').addEventListener('click', () => {
+        query.value = '';
+        renderRecords();
+      });
+
+      byId('export-business').addEventListener('click', () => {
+        const file = new Blob(['\uFEFF', makeBackup()], { type: 'text/csv;charset=utf-8' });
+        downloadFile(file, '面线糊营业备份-' + localDate + '.csv');
+      });
+
+      byId('import-business').addEventListener('change', async event => {
+        const input = event.currentTarget;
+        const file = input.files[0];
+        if (!file || importing) {
+          input.value = '';
+          return;
+        }
+        importing = true;
+        input.disabled = true;
+        try {
+          const backup = parseBackup(await file.text());
+          if (!confirm('导入会覆盖当前的产品设置、固定费用和全部营业记录。确认覆盖？')) {
+            backupStatus.textContent = '已取消导入，原有数据仍保留。';
+            return;
+          }
+          state = backup;
+          persist();
+          refreshAfterImport();
+          backupStatus.textContent = '营业备份已导入本页。请点「保存到云端」。';
+        } catch {
+          backupStatus.textContent = '无法导入。请选择本工具导出的 CSV 备份，原有数据仍保留。';
+        } finally {
+          importing = false;
+          input.disabled = false;
+          input.value = '';
+        }
+      });
+
+      function describeBackup(backup) {
+        const time = new Date(backup.exportedAt).toLocaleString('zh-CN');
+        return '备份时间 ' + time + '，' + describeData(backup.business);
+      }
+
+      function describeData(data) {
+        return ingredients.length + ' 项食材、' + data.products.length + ' 种产品、' +
+          Object.keys(data.days).length + ' 条营业记录、' + Object.keys(data.fees).length + ' 个月的已设置费用';
+      }
+
+      function renderBackupCount() {
+        byId('full-backup-count').textContent = '当前数据：' + describeData(state) + '。';
+      }
+
+      function validateCompleteData(data) {
+        const object = value => value !== null && typeof value === 'object' && !Array.isArray(value);
+        const list = (value, size, check) => Array.isArray(value) && value.length === size && value.every(check);
+        const integer = (value, max) => Number.isInteger(value) && value >= 0 && value <= max;
+        const cents = value => value === null || integer(value, 99999999);
+        const productAmounts = value => list(value, 3, pair => list(pair, 2, cents));
+        const requireValid = condition => {
+          if (!condition) throw new Error('数据格式无效');
+        };
+
+        requireValid(object(data) && data.format === 'taiwan-noodle-management' && data.version === 1);
+        const { calculator, business } = data;
+        requireValid(object(calculator) && typeof calculator.price === 'string' && object(calculator.ingredients));
+        requireValid(Object.keys(calculator.ingredients).length === ingredients.length &&
+          ingredients.every(([id]) => Object.hasOwn(calculator.ingredients, id) &&
+            list(calculator.ingredients[id], 3, value => typeof value === 'string')));
+        requireValid(object(business) && productAmounts(business.products) && object(business.days) && object(business.fees));
+        requireValid(Object.entries(business.fees).every(([monthKey, values]) => validMonth(monthKey) && list(values, 4, cents)));
+        for (const [day, record] of Object.entries(business.days)) {
+          requireValid(validDate(day) && object(record) && list(record.quantities, 3, value => integer(value, 99999)) &&
+            productAmounts(record.prices) &&
+            record.quantities.every((count, index) => count === 0 || !record.prices[index].includes(null)));
+        }
+        return data;
+      }
+
+      function downloadFile(file, name) {
+        const url = URL.createObjectURL(file);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = name;
+        document.body.append(link);
+        link.click();
+        link.remove();
+        setTimeout(() => URL.revokeObjectURL(url), 30000);
+      }
+
+      function refreshAfterImport() {
+        fillProducts(productInputs, state.products);
+        byId('product-status').textContent = '';
+        fillFees();
+        clearEditor();
+        renderMonth();
+        renderRecords();
+        renderBackupCount();
+      }
+
+      byId('export-full').addEventListener('click', () => {
+        const backup = { ...completeData(), exportedAt: new Date().toISOString() };
+        const file = new Blob([JSON.stringify(backup, null, 2)], { type: 'application/json' });
+        downloadFile(file, '面线糊完整备份-' + backup.exportedAt.replace(/[:.]/g, '-') + '.json');
+        fullBackupStatus.textContent = describeBackup(backup) + '。请到「文件」中确认已保存。';
+      });
+
+      byId('import-full').addEventListener('change', async event => {
+        const input = event.currentTarget;
+        const file = input.files[0];
+        if (!file || importing) {
+          input.value = '';
+          return;
+        }
+        importing = true;
+        input.disabled = true;
+        try {
+          let backup;
+          try {
+            backup = validateCompleteData(JSON.parse((await file.text()).replace(/^\uFEFF/, '')));
+            const time = new Date(backup.exportedAt);
+            if (typeof backup.exportedAt !== 'string' || !Number.isFinite(time.getTime()) ||
+                time.toISOString() !== backup.exportedAt) throw new Error('备份日期无效');
+          } catch {
+            fullBackupStatus.textContent = '无法读取此 JSON 备份，当前数据仍保留。';
+            return;
+          }
+          const summary = describeBackup(backup);
+          if (!confirm(summary + '。\n恢复会覆盖当前食材设置、售价、固定费用和营业记录。确认恢复？')) {
+            fullBackupStatus.textContent = '已取消恢复，当前数据仍保留。';
+            return;
+          }
+
+          state = backup.business;
+          applyCalculatorValues(backup.calculator);
+          query.value = '';
+          updateResults();
+          refreshAfterImport();
+          persist();
+          fullBackupStatus.textContent = '已恢复到本页，请点「保存到云端」。' + summary + '。';
+        } finally {
+          importing = false;
+          input.disabled = false;
+          input.value = '';
+        }
+      });
+
+      persistCalculator = persist;
+      const projectUrl = 'https://sbztzinzthqnfxlkrefg.supabase.co';
+      const publishableKey = 'sb_publishable_Sr75o3vqN57a-imDwLYhcQ_RvkoM6Ob';
+      const cloudStatus = byId('cloud-status');
+      const loginStatus = byId('cloud-login-status');
+      let accessToken = '';
+      let memberRole = '';
+      let revision = null;
+      let savedSnapshot = '';
+      let busy = false;
+
+      async function cloudRequest(path, options = {}, token = accessToken) {
+        const headers = { apikey: publishableKey, 'Content-Type': 'application/json' };
+        if (token) headers.Authorization = 'Bearer ' + token;
+        const response = await fetch(projectUrl + path, { ...options, headers, cache: 'no-store' });
+        const result = await response.json();
+        if (!response.ok) throw new Error(result.message || 'REQUEST_FAILED');
+        return result;
+      }
+
+      function cloudMessage(message) {
+        cloudStatus.textContent = message;
+      }
+
+      function snapshot() {
+        return JSON.stringify(completeData());
+      }
+
+      function cloudError(error) {
+        if (error.message === 'REVISION_CONFLICT') {
+          return '账本已被其他手机更新。可先导出当前草稿，再点「读取云端账本」核对最新版。';
+        }
+        return '云端操作失败。请检查网络和登录状态。';
+      }
+
+      function applyCloudData(data) {
+        if (data !== null) {
+          const validated = validateCompleteData(data);
+          state = validated.business;
+          applyCalculatorValues(validated.calculator);
+        } else {
+          state = { products: [[3800, null], [3800, null], [null, null]], fees: {}, days: {} };
+          applyCalculatorValues(null);
+        }
+        updateResults();
+        query.value = '';
+        refreshAfterImport();
+      }
+
+      async function readCloud(expectedDraft = null) {
+        const [row] = await cloudRequest('/rest/v1/noodle_ledger?id=eq.1&select=ledger_data,revision');
+        if (!row || !Number.isInteger(row.revision)) throw new Error('NOT_A_MEMBER');
+        if (expectedDraft !== null && snapshot() !== expectedDraft) {
+          cloudMessage('读取期间页面有新修改。已保留本页内容，请核对后再读取。');
+          return;
+        }
+        applyCloudData(row.ledger_data);
+        revision = row.revision;
+        savedSnapshot = snapshot();
+        cloudMessage(row.ledger_data === null ? '云端账本为空。所有者可以导入 JSON 后保存到云端。' : '已读到云端最新版。');
+      }
+
+      function setOwnerControls() {
+        const fields = document.querySelectorAll(
+          '#cost-panel input, #cost-panel #reset, #product-settings input, #use-noodle-cost, ' +
+          '.fees input, #import-full, #import-business'
+        );
+        for (const field of fields) field.disabled = memberRole !== 'owner';
+      }
+
+      const loginForm = byId('cloud-login');
+      const resetForm = byId('reset-password');
+      const recovery = new URLSearchParams(location.hash.slice(1));
+      let recoveryToken = recovery.get('type') === 'recovery' ? recovery.get('access_token') : null;
+      if (recovery.has('access_token') || recovery.has('error')) {
+        history.replaceState(null, '', location.pathname + location.search);
+      }
+      if (recoveryToken) {
+        loginForm.hidden = true;
+        resetForm.hidden = false;
+      } else if (recovery.has('error')) {
+        loginStatus.textContent = '重设链接已失效。请重新发送邮件。';
+      }
+
+      byId('request-reset').addEventListener('click', async () => {
+        const email = byId('cloud-email');
+        if (busy || !email.reportValidity()) return;
+        busy = true;
+        loginStatus.textContent = '正在请求重设邮件…';
+        try {
+          await cloudRequest('/auth/v1/recover', {
+            method: 'POST', body: JSON.stringify({ email: email.value.trim() })
+          });
+          loginStatus.textContent = '如果邮箱可以接收重设邮件，请查看收件箱或垃圾邮件。';
+        } catch {
+          loginStatus.textContent = '暂时无法发送。请稍后重试。';
+        } finally {
+          busy = false;
+        }
+      });
+
+      resetForm.addEventListener('submit', async event => {
+        event.preventDefault();
+        if (busy || !recoveryToken) return;
+        busy = true;
+        const passwordInput = byId('new-password');
+        const resetStatus = byId('reset-status');
+        resetStatus.textContent = '正在保存…';
+        try {
+          await cloudRequest('/auth/v1/user', {
+            method: 'PUT', body: JSON.stringify({ password: passwordInput.value })
+          }, recoveryToken);
+          recoveryToken = null;
+          passwordInput.value = '';
+          resetForm.hidden = true;
+          loginForm.hidden = false;
+          loginStatus.textContent = '新密码已保存。请用新密码登录。';
+        } catch (error) {
+          resetStatus.textContent = '无法保存新密码。请确认密码至少 8 位；如果链接过期，请回登录页重发邮件。';
+        } finally {
+          busy = false;
+        }
+      });
+
+      byId('cloud-login').addEventListener('submit', async event => {
+        event.preventDefault();
+        if (busy || accessToken) return;
+        busy = true;
+        loginStatus.textContent = '正在登录…';
+        const email = byId('cloud-email').value.trim();
+        const password = byId('cloud-password').value;
+        byId('cloud-password').value = '';
+        try {
+          const login = await cloudRequest('/auth/v1/token?grant_type=password', {
+            method: 'POST', body: JSON.stringify({ email, password })
+          });
+          accessToken = login.access_token;
+          const [member] = await cloudRequest('/rest/v1/noodle_ledger_members?select=member_role');
+          memberRole = member?.member_role;
+          if (!['owner', 'editor'].includes(memberRole)) throw new Error('NOT_A_MEMBER');
+          await readCloud();
+          setOwnerControls();
+          byId('cloud-gate').hidden = true;
+          byId('cloud-app').hidden = false;
+        } catch (error) {
+          accessToken = '';
+          memberRole = '';
+          loginStatus.textContent = error.message === 'NOT_A_MEMBER'
+            ? '这个账号还未加入共享账本。' : '登录失败。请检查邮箱、密码和网络后重试。';
+        } finally {
+          busy = false;
+        }
+      });
+
+      byId('cloud-save').addEventListener('click', async () => {
+        if (busy || importing || revision === null) return;
+        busy = true;
+        const draft = snapshot();
+        try {
+          const nextRevision = await cloudRequest('/rest/v1/rpc/noodle_save_ledger', {
+            method: 'POST', body: JSON.stringify({ expected_revision: revision, new_data: JSON.parse(draft) })
+          });
+          if (!Number.isInteger(nextRevision)) throw new Error('SAVE_FAILED');
+          revision = nextRevision;
+          savedSnapshot = draft;
+          cloudMessage(snapshot() === draft ? '已保存到云端。其他手机现在可以读取。' : '已保存提交时的版本。页面里还有新修改。');
+        } catch (error) {
+          cloudMessage(cloudError(error));
+        } finally {
+          busy = false;
+        }
+      });
+
+      byId('cloud-read').addEventListener('click', async () => {
+        if (busy || importing || (snapshot() !== savedSnapshot &&
+            !confirm('读取将替换本页尚未保存的修改，继续吗？'))) return;
+        busy = true;
+        try {
+          await readCloud(snapshot());
+        } catch (error) {
+          cloudMessage(cloudError(error));
+        } finally {
+          busy = false;
+        }
+      });
+
+      byId('cloud-logout').addEventListener('click', () => {
+        if (busy || importing || (snapshot() !== savedSnapshot &&
+            !confirm('退出将清除本页尚未保存的修改，继续吗？'))) return;
+        accessToken = '';
+        memberRole = '';
+        revision = null;
+        savedSnapshot = '';
+        applyCloudData(null);
+        byId('cloud-app').hidden = true;
+        byId('cloud-gate').hidden = false;
+        loginStatus.textContent = '已退出。';
+      });
+
+      window.addEventListener('beforeunload', event => {
+        if (accessToken && snapshot() !== savedSnapshot) event.preventDefault();
+      });
+
+      updateResults();
+      fillProducts(productInputs, state.products);
+      month.value = localDate.slice(0, 7);
+      fillFees();
+      clearEditor();
+      renderMonth();
+      renderRecords();
+      renderBackupCount();
+    })();
+  </script>
+</body>
+</html>
